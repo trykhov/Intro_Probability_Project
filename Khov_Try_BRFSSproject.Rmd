@@ -1,0 +1,266 @@
+---
+title: "Exploring the BRFSS data"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+```
+
+### Load data
+
+```{r load-data}
+load("brfss2013.RData")
+```
+
+* * *
+
+## Part 1: Data
+This paper will explore depressive disorders among people in the given dataset. Particularly, we will look at people who have been professionally diagnosed to have a depressive disorder as well as whether or not they are undergoing treatment. We will also look at potential factors as to why those that have been diagnosed with depressive disorders are not seeking treatment. The investigated factors will include lack of health care as well as their views on the stigmatization of mental health issues.
+
+First, obtain data of those that are: 
+
+* `addepev2` : Diagnosis of depressive disorder
+* `mistmnt`  : Undergoing treatment
+
+```{r}
+has_dd <- brfss2013 %>% 
+  select(addepev2, mistmnt) %>% 
+  filter(addepev2 == "Yes", !is.na(mistmnt)) 
+```
+<br>
+We determined that the number of individuals in the dataset that have reported to have been diagnosed with a depressive disorder to be:
+```{r}
+nrow(has_dd)
+```
+
+
+* * *
+
+## Part 2: Research questions
+
+**Research quesion 1:**
+Of people that have been diagnosed with a depressive disorder, how many are undergoing treatment versus those that are not?
+
+**Research quesion 2:**
+For those that are not undergoing treatment despite being diagnosed with a depressive disorder, what possible reason(s) could prevent / dissuade them from seeking treatment?
+
+**Research quesion 3:**
+If the data does not provide sufficient evidence that stigmatization of mental illness, lack of health coverage, nor the lack of belief in the effectiveness of treatment are reasons that people with depressive disorders do not undergo treatment, then what else could play a role?
+
+
+* * *
+
+## Part 3: Exploratory data analysis
+<br>
+**Research quesion 1:** Of people that have been diagnosed with a depressive disorder, how many are undergoing treatment versus those that are not?
+
+Recall that we stored our sorted data in the `has_dd` variable. We want to see how many people have been diagnosed with a depressive disorder **and** are undergoing treatment versus how many have been diagnosed and are **not** undergoing treatment. 
+
+```{r}
+has_dd %>% select(addepev2, mistmnt) %>% 
+  group_by(mistmnt) %>% 
+  summarise(count = n())
+```
+
+<br>
+According to the data, 4363 people have been reported to have been diagnosed with a depressive disorder and are undergoing treatment. However, the data also indicates that 3330 people are not undergoing treatment despite having been diagonsed with a depressive disorder. The bar chart below illustrates the difference among the two.
+<br>
+```{r}
+ggplot(has_dd, aes(x = mistmnt)) + geom_bar()
+```
+
+We will label those that are not seeking treatment as `no_treatment`.
+```{r}
+no_treatment <- has_dd %>%
+  filter(mistmnt == "No")
+
+nrow(no_treatment)
+```
+
+<br>
+However, this does not give us enough information as to why those that have been diagnosed with a depressive disorder are not undergoing treatment. We will explore this in the following investigation.
+
+<br>
+**Research quesion 2:** For those that are not undergoing treatment despite being diagnosed with a depressive disorder, what possible reason(s) could prevent / dissuade them from seeking treatment?
+
+<br>
+One factor to investigate is whether or not these individuals believe that treatment can help them. If so, it points us to another direction to investigate the reason they haven't sought treatment. If not, then perhaps such a belief is preventing them from seeking treatment.
+
+<br>
+
+We will look at the `mistrhlp` variable as a starting point.
+
+* `mistrhlp` : Believe that treatment is / is not effective
+```{r}
+
+belief_treat <- brfss2013 %>% 
+  select(addepev2, mistmnt, mistrhlp) %>% 
+  filter(addepev2 == "Yes", mistmnt == "No", !is.na(mistrhlp))
+```
+Here is a bar chart of views regarding whether or not individuals believe that treatment will help with mental illness.
+```{r}
+ggplot(belief_treat, aes(x = mistrhlp)) + geom_bar()
+belief_treat %>% group_by(mistrhlp) %>% summarise(count = n())
+```
+<br>
+As we can see, there is large proportion of individuals that agree that treatment is effective over those that don't. However, we will focus on those that disagree with the idea that treatment is effective.
+```{r}
+disagrees_with_treatment <- belief_treat %>% 
+  filter(mistrhlp == "Disagree slightly" | mistrhlp == "Disagree strongly")
+
+disagrees_with_treatment %>% 
+  nrow()
+```
+
+<br>
+
+According to the data, we see that of those that are not undergoing treatment despite their diagnosis for depressive disorder, only 162 of them do **not** believe that treatment will help them.
+```{r}
+nrow(disagrees_with_treatment) / nrow(no_treatment)
+```
+However, we see that the proportion to those that do not believe in treatment to those that do not get treatment seems insignificant (4.86%). While it is plausible that lack of belief in the effectiveness of treatment is preventing them from undergoing treatment, we will look at other factors to find out more.
+<br>
+
+Another possible factor is the stigmatization of mental illness. This is due to the possibility that individuals are afraid of how others will treat them if they were found out to be on treatment. We will look at the relationship between those that are not undergoing treatment and how they feel about people's perspection of mental illness.
+
+* `misphlpf` : Believe that people generally caring towards people with mental illness
+```{r}
+stigma_belief <- brfss2013 %>%
+  select(addepev2, mistmnt, misphlpf) %>% 
+  filter(addepev2 == "Yes", mistmnt == "No", !is.na(misphlpf)) 
+
+ggplot(stigma_belief, aes(x = misphlpf)) + geom_bar()
+stigma_belief %>%
+  group_by(misphlpf) %>%
+  summarise(count = n())
+```
+<br>
+Here, we can clearly that the amount of those that agree are near similar to those that disagree. However, similar to our examination of those that do not believe that treatment is effective, we will look at those that disagree that people are generally kind to people with mental illness.
+```{r}
+disagree_stigma <- stigma_belief %>%
+  filter(misphlpf == "Disagree slightly" | misphlpf == "Disagree strongly")
+```
+
+```{r}
+nrow(disagree_stigma)
+```
+
+Here, we notice a much more significant proportion of individuals who believe that people are not generally caring towards those with mental illness over those that do not see effectiveness of treatment. 
+```{r}
+nrow(disagree_stigma) / nrow(no_treatment)
+```
+
+Evidently, about 43.60% of individuals that are not undergoing treatment believe that people are not generally kind towards those with a mental illness. However, 43.60% is still not significant enough to explain why people do not undergo treatment despite their diagnosis for a depressive disorder.
+
+<br>
+We will not look into whether or not insurance coverage has a significant role in this study. The reasoning for investigating this factor is because cost may play a role in how why individuals do not get treatment simply because they cannot afford to.
+
+* `hlthpln1` : Have health insurance
+* `medcost` : Did not see a doctor or other health professional because costs were too high
+```{r}
+lack_insurance <- brfss2013 %>%
+  select(addepev2, mistmnt, hlthpln1) %>% 
+  filter(addepev2 == "Yes", mistmnt == "No", hlthpln1 == "No")
+
+cost_issue <- brfss2013 %>%
+  select(addepev2, mistmnt, medcost) %>% 
+  filter(addepev2 == "Yes", mistmnt == "No", medcost == "Yes")
+```
+
+```{r}
+nrow(lack_insurance) / nrow(no_treatment)
+nrow(cost_issue) / nrow(no_treatment)
+```
+
+About 15.98% of individuals do not have health coverage while 23.69% of individuals were unable to see a health professional because the cost was too high.
+
+<br>
+**Research quesion 3:** If the data does not provide sufficient evidence that stigmatization of mental illness, lack of health coverage, nor the lack of belief in the effectiveness of treatment are reasons that people with depressive disorders do not undergo treatment, then what else could play a role? 
+<br>
+Other variables to consider:
+
+* `cadult`: Gender of individual
+* `X_prace1`: Preferred classification of race
+* `genhlth`: Their outlook on their health
+
+Let's start to look at gender to intrigue the idea that there might be proportion that one gender does not undergo treatment in proportion to the other.
+
+```{r}
+has_dd_gender <- 
+  brfss2013 %>%
+  select(addepev2, mistmnt, cadult) %>%
+  filter(addepev2 == "Yes", mistmnt == "No", !is.na(cadult))
+
+ggplot(has_dd_gender, aes(x = cadult)) + geom_bar()
+```
+
+```{r}
+has_dd_gender %>% group_by(cadult) %>% summarise(count = n())
+```
+
+While the total number of people who gave information regarding their gender does not cover half of the targeted population, it is interesting nonetheless to see the difference between genders in regards to not undergoing treatment.
+```{r}
+has_dd_gender %>% group_by(cadult) %>% summarise(gender_treat_ratio = n() / nrow(no_treatment))
+```
+
+According to this sample, it seems that women are 5% less likely to undergo treatment than men. 
+
+<br>
+Now we will look into race. Certain cultures have their own views on mental illnesses that are preventing those in their community from seeking treatment.
+```{r}
+has_dd_race <- 
+  brfss2013 %>%
+  select(addepev2, mistmnt, X_prace1) %>%
+  filter(addepev2 == "Yes", mistmnt == "No", !is.na(X_prace1))
+
+ggplot(has_dd_race, aes(x = X_prace1)) + geom_bar() + coord_flip()
+```
+<br>
+From the chart above, we see that those that identify as white construct the largest group of those that are not undergoing treatment. 
+<br>
+```{r}
+has_dd_race %>% group_by(X_prace1) %>% summarise(count = n(), race_treat_ratio = n() / nrow(no_treatment))
+```
+
+Throughout this analysis, it has never been considered how they view their overall health. If they figure that their depressive disorder is not a huge issue, then perhaps they do not believe that they need treatment.
+```{r}
+outlook_health <- brfss2013 %>%
+  select(addepev2, mistmnt, genhlth) %>%
+  filter(addepev2 == "Yes", mistmnt == "No", !is.na(genhlth))
+
+ggplot(outlook_health, aes(x = genhlth)) + geom_bar() + coord_flip()
+outlook_health %>% 
+  group_by(genhlth) %>% 
+  summarise(count = n(), health_ratio = n() / nrow(no_treatment), percentage = health_ratio * 100)
+```
+
+As we see, the data shows that over 50% of individuals with a depressive disorder that do not undergo treatment consider their health to be positive. However, let's look a little bit deep with regards to how they felt the past 30 days before they took the survey.
+
+* `menthlth`: Number of days in the past 30 days they considered their mental health not to be good
+```{r}
+days_not_good <- brfss2013 %>%
+  select(addepev2, mistmnt, menthlth) %>%
+  filter(addepev2 == "Yes", mistmnt == "No", !is.na(menthlth))
+
+ggplot(days_not_good, aes(x = menthlth)) + geom_bar()
+
+days_not_good %>% group_by(menthlth) %>% 
+  summarise(count = n(), good_ration = n() / nrow(no_treatment), percentage = good_ration * 100) %>%
+  mutate(cummulation = cumsum(percentage))
+```
+
+As we can see from the chart and the graph above, at least 65% of individuals have reported that their mental health was not good for at most 7 days of the month. While this is not a definitive explanation as to why they do not undergo treatment, it is still an interesting factor to consider. Since they might not believe their condition to be a big hinderance on their daily lives, they might not be incentivized to undergo treatment.
+
+## Closing Statement
+
+While there is not a definitive explanation for why people who have been professionally diagnosed with a depressive disorder but do not undergo treatment provided by the data analysis, this project has presented an insightful look into various factors that could contribute to this phenomenon. While various factors such as lack of health care coverage or disbelief in the effectiveness of treatment may have been obvious, the data said otherwise. However, it should not be overlooked that many do not feel a sense of desire to get treatment if their symptoms have not been a huge issue for them as we've seen in the last part of the analysis. Therefore, more data would need to be provided but this is a good starting point.
